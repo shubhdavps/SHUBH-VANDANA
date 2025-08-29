@@ -1,0 +1,1079 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Watch with shubham - Watch Movies Together</title>
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="https://www.youtube.com/iframe_api"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        
+        * {
+            font-family: 'Inter', sans-serif;
+        }
+        
+        .gradient-bg {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        
+        .glass-effect {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        
+        .video-container {
+            aspect-ratio: 16/9;
+            background: #000;
+            border-radius: 12px;
+            overflow: hidden;
+        }
+        
+        .chat-message:hover {
+            background: rgba(255, 255, 255, 0.05);
+        }
+        
+        .user-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: linear-gradient(45deg, #ff6b6b, #4ecdc4);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 600;
+        }
+        
+        .video-call-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+        }
+        
+        .video-call-participant {
+            background: #2d3748;
+            border-radius: 12px;
+            padding: 20px;
+            text-align: center;
+            position: relative;
+        }
+        
+        .participant-active {
+            border: 2px solid #48bb78;
+        }
+        
+        .custom-scrollbar {
+            scrollbar-width: thin;
+            scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+        }
+        
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+        }
+        
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 3px;
+        }
+        
+        .upload-zone {
+            border: 2px dashed rgba(255, 255, 255, 0.3);
+            border-radius: 12px;
+            transition: all 0.3s ease;
+        }
+        
+        .upload-zone:hover {
+            border-color: rgba(255, 255, 255, 0.6);
+            background: rgba(255, 255, 255, 0.05);
+        }
+        
+        #youtube-player {
+            width: 100%;
+            height: 100%;
+        }
+        
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body class="gradient-bg min-h-screen text-white">
+    <!-- Navigation -->
+    <nav class="glass-effect rounded-xl mx-4 mt-4 p-4 flex justify-between items-center">
+        <div class="flex items-center space-x-4">
+            <div class="w-10 h-10 bg-white rounded-lg flex items-center justify-center">
+                <span class="text-purple-600 font-bold text-xl">ST</span>
+            </div>
+            <h1 class="text-2xl font-bold">SHUBH VANDANA</h1>
+        </div>
+        
+        <div class="flex items-center space-x-4">
+            <button id="inviteBtn" class="bg-white text-purple-600 px-6 py-2 rounded-lg font-semibold hover:bg-gray-100 transition">
+                <i class="fas fa-user-plus mr-2"></i>Invite Friends
+            </button>
+            <div class="relative">
+                <div class="w-10 h-10 bg-green-500 rounded-full flex items-center justify-center">
+                    <span id="userInitial" class="font-semibold">U</span>
+                </div>
+                <div class="absolute -bottom-1 -right-1 w-4 h-4 bg-green-400 rounded-full border-2 border-purple-700"></div>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mx-auto p-4 mt-6">
+        <!-- Join Room Modal -->
+        <div id="joinModal" class="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
+            <div class="glass-effect rounded-xl p-8 max-w-md w-full mx-4">
+                <h2 class="text-2xl font-bold mb-6 text-center">Join Stream Room</h2>
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium mb-2">Username</label>
+                        <input type="text" id="usernameInput" placeholder="Enter your username" 
+                               class="w-full bg-gray-700 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-purple-400">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium mb-2">Room ID</label>
+                        <input type="text" id="roomIdInput" placeholder="Enter room ID" 
+                               class="w-full bg-gray-700 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-purple-400">
+                    </div>
+                    <button id="joinBtn" class="w-full bg-purple-600 hover:bg-purple-700 text-white py-3 rounded-lg font-semibold transition">
+                        Join Room
+                    </button>
+                    <button id="createRoomBtn" class="w-full bg-green-600 hover:bg-green-700 text-white py-3 rounded-lg font-semibold transition">
+                        Create New Room
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div id="mainContent" class="hidden">
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <!-- Main Video Area -->
+                <div class="lg:col-span-2 space-y-6">
+                    <!-- Video Player -->
+                    <div class="video-container relative">
+                        <div id="uploaded-video-container" class="hidden">
+                            <video id="uploaded-video" class="w-full h-full" controls>
+                                Your browser does not support the video tag.
+                            </video>
+                        </div>
+                        <div id="youtube-container" class="hidden w-full h-full">
+                            <div id="youtube-player"></div>
+                        </div>
+                        <div id="no-video" class="absolute inset-0 flex items-center justify-center">
+                            <div class="text-center">
+                                <i class="fas fa-film text-6xl text-gray-400 mb-4"></i>
+                                <p class="text-gray-300">No video selected. Upload a file or enter a YouTube URL.</p>
+                            </div>
+                        </div>
+                        
+                        <div id="video-controls" class="absolute bottom-4 left-4 right-4 glass-effect rounded-lg p-4 hidden">
+                            <div class="flex items-center justify-between">
+                                <div class="flex items-center space-x-4">
+                                    <button id="playPauseBtn" class="bg-white text-purple-600 p-2 rounded-full hover:bg-gray-100">
+                                        <i class="fas fa-play"></i>
+                                    </button>
+                                    <div class="text-sm">
+                                        <div id="video-title">No video playing</div>
+                                        <div class="text-gray-300">
+                                            <span id="current-time">0:00</span> / 
+                                            <span id="total-time">0:00</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="flex items-center space-x-2">
+                                    <button class="p-2 hover:bg-white hover:bg-opacity-10 rounded-full">
+                                        <i class="fas fa-volume-up"></i>
+                                    </button>
+                                    <button class="p-2 hover:bg-white hover:bg-opacity-10 rounded-full">
+                                        <i class="fas fa-expand"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="mt-2 w-full bg-gray-600 rounded-full h-2">
+                                <div id="progress-bar" class="bg-white h-2 rounded-full" style="width: 0%"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Video Call Participants -->
+                    <div class="glass-effect rounded-xl p-4">
+                        <h2 class="text-lg font-semibold mb-4 flex items-center">
+                            <i class="fas fa-video mr-2"></i>Video Call
+                            <span id="online-count" class="ml-2 bg-green-500 text-xs px-2 py-1 rounded-full">1 Online</span>
+                        </h2>
+                        <div id="video-call-container" class="video-call-grid">
+                            <!-- Video call participants will be added here dynamically -->
+                        </div>
+                        <div class="flex justify-center space-x-4 mt-4">
+                            <button id="endCallBtn" class="bg-red-500 p-3 rounded-full hover:bg-red-600 transition">
+                                <i class="fas fa-phone-slash"></i>
+                            </button>
+                            <button id="muteBtn" class="bg-gray-600 p-3 rounded-full hover:bg-gray-700 transition">
+                                <i class="fas fa-microphone-slash"></i>
+                            </button>
+                            <button id="videoBtn" class="bg-gray-600 p-3 rounded-full hover:bg-gray-700 transition">
+                                <i class="fas fa-video-slash"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Upload Options -->
+                    <div class="glass-effect rounded-xl p-6">
+                        <h2 class="text-lg font-semibold mb-4 flex items-center">
+                            <i class="fas fa-cloud-upload-alt mr-2"></i>Add Content
+                        </h2>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div class="upload-zone p-6 text-center cursor-pointer" onclick="document.getElementById('fileInput').click()">
+                                <div class="text-3xl mb-3">
+                                    <i class="fas fa-file-video"></i>
+                                </div>
+                                <h3 class="font-semibold mb-2">Upload Video File</h3>
+                                <p class="text-sm text-gray-300">MP4, MKV, AVI up to 200MB</p>
+                                <input type="file" id="fileInput" class="hidden" accept="video/*">
+                                <div id="upload-progress" class="mt-2 hidden">
+                                    <div class="w-full bg-gray-600 rounded-full h-2">
+                                        <div id="progress-bar-upload" class="bg-green-500 h-2 rounded-full" style="width: 0%"></div>
+                                    </div>
+                                    <div id="upload-status" class="text-sm mt-1"></div>
+                                </div>
+                            </div>
+                            <div class="upload-zone p-6 text-center">
+                                <div class="text-3xl mb-3">
+                                    <i class="fab fa-youtube"></i>
+                                </div>
+                                <h3 class="font-semibold mb-2">YouTube Video</h3>
+                                <p class="text-sm text-gray-300">Paste YouTube URL or ID</p>
+                                <div class="mt-3">
+                                    <input type="text" id="youtubeInput" placeholder="YouTube URL or Video ID" 
+                                           class="w-full bg-gray-700 rounded-lg px-3 py-2 text-sm mb-2">
+                                    <button id="loadYoutubeBtn" class="bg-red-600 hover:bg-red-700 px-4 py-2 rounded-lg text-sm">
+                                        Load Video
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Chat Sidebar -->
+                <div class="glass-effect rounded-xl p-4">
+                    <h2 class="text-lg font-semibold mb-4 flex items-center">
+                        <i class="fas fa-comments mr-2"></i>Group Chat
+                    </h2>
+                    
+                    <div id="chat-messages" class="h-96 overflow-y-auto custom-scrollbar mb-4">
+                        <!-- Chat messages will be added here dynamically -->
+                    </div>
+                    
+                    <div class="flex space-x-2">
+                        <input type="text" id="chatInput" placeholder="Type a message..." 
+                               class="flex-1 bg-gray-700 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-purple-400">
+                        <button id="sendMessageBtn" class="bg-purple-500 px-4 py-2 rounded-lg hover:bg-purple-600 transition">
+                            <i class="fas fa-paper-plane"></i>
+                        </button>
+                    </div>
+                    
+                    <!-- Online Users -->
+                    <div class="mt-6">
+                        <h3 class="font-semibold mb-3 flex items-center">
+                            <i class="fas fa-users mr-2"></i>Online Users
+                        </h3>
+                        <div id="online-users" class="space-y-2">
+                            <!-- Online users will be added here dynamically -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Global variables
+        let socket = null;
+        let currentRoom = null;
+        let currentUsername = null;
+        let youtubePlayer = null;
+        let uploadedVideo = null;
+        let peerConnections = new Map();
+        let localStream = null;
+        let isMuted = false;
+        let isVideoOff = false;
+
+        // DOM Elements
+        const joinModal = document.getElementById('joinModal');
+        const mainContent = document.getElementById('mainContent');
+        const usernameInput = document.getElementById('usernameInput');
+        const roomIdInput = document.getElementById('roomIdInput');
+        const joinBtn = document.getElementById('joinBtn');
+        const createRoomBtn = document.getElementById('createRoomBtn');
+        const chatMessages = document.getElementById('chat-messages');
+        const chatInput = document.getElementById('chatInput');
+        const sendMessageBtn = document.getElementById('sendMessageBtn');
+        const onlineUsers = document.getElementById('online-users');
+        const videoCallContainer = document.getElementById('video-call-container');
+        const onlineCount = document.getElementById('online-count');
+        const fileInput = document.getElementById('fileInput');
+        const youtubeInput = document.getElementById('youtubeInput');
+        const loadYoutubeBtn = document.getElementById('loadYoutubeBtn');
+        const playPauseBtn = document.getElementById('playPauseBtn');
+        const uploadedVideoContainer = document.getElementById('uploaded-video-container');
+        const youtubeContainer = document.getElementById('youtube-container');
+        const noVideo = document.getElementById('no-video');
+        const videoControls = document.getElementById('video-controls');
+        const currentTimeEl = document.getElementById('current-time');
+        const totalTimeEl = document.getElementById('total-time');
+        const progressBar = document.getElementById('progress-bar');
+        const videoTitle = document.getElementById('video-title');
+        const uploadedVideoEl = document.getElementById('uploaded-video');
+        const uploadProgress = document.getElementById('upload-progress');
+        const progressBarUpload = document.getElementById('progress-bar-upload');
+        const uploadStatus = document.getElementById('upload-status');
+        const endCallBtn = document.getElementById('endCallBtn');
+        const muteBtn = document.getElementById('muteBtn');
+        const videoBtn = document.getElementById('videoBtn');
+        const userInitial = document.getElementById('userInitial');
+
+        // Initialize the application
+        function init() {
+            setupEventListeners();
+            generateRandomRoomId();
+        }
+
+        // Set up event listeners
+        function setupEventListeners() {
+            joinBtn.addEventListener('click', joinRoom);
+            createRoomBtn.addEventListener('click', createRoom);
+            sendMessageBtn.addEventListener('click', sendMessage);
+            chatInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') sendMessage();
+            });
+
+            fileInput.addEventListener('change', handleFileUpload);
+            loadYoutubeBtn.addEventListener('click', loadYouTubeVideo);
+            playPauseBtn.addEventListener('click', togglePlayPause);
+
+            endCallBtn.addEventListener('click', endCall);
+            muteBtn.addEventListener('click', toggleMute);
+            videoBtn.addEventListener('click', toggleVideo);
+
+            // Setup video event listeners for uploaded videos
+            if (uploadedVideoEl) {
+                uploadedVideoEl.addEventListener('play', handleVideoPlay);
+                uploadedVideoEl.addEventListener('pause', handleVideoPause);
+                uploadedVideoEl.addEventListener('seeked', handleVideoSeek);
+                uploadedVideoEl.addEventListener('timeupdate', handleVideoTimeUpdate);
+                uploadedVideoEl.addEventListener('loadedmetadata', handleVideoLoaded);
+            }
+        }
+
+        // Generate random room ID
+        function generateRandomRoomId() {
+            const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+            let result = '';
+            for (let i = 0; i < 6; i++) {
+                result += chars.charAt(Math.floor(Math.random() * chars.length));
+            }
+            roomIdInput.value = result;
+        }
+
+        // Create a new room
+        function createRoom() {
+            const username = usernameInput.value.trim();
+            const roomId = roomIdInput.value.trim();
+
+            if (!username) {
+                alert('Please enter a username');
+                return;
+            }
+
+            joinRoomWithData(username, roomId);
+        }
+
+        // Join an existing room
+        function joinRoom() {
+            const username = usernameInput.value.trim();
+            const roomId = roomIdInput.value.trim();
+
+            if (!username) {
+                alert('Please enter a username');
+                return;
+            }
+
+            if (!roomId) {
+                alert('Please enter a room ID');
+                return;
+            }
+
+            joinRoomWithData(username, roomId);
+        }
+
+        // Join room with username and room ID
+        function joinRoomWithData(username, roomId) {
+            currentUsername = username;
+            currentRoom = roomId;
+            userInitial.textContent = username.charAt(0).toUpperCase();
+
+            // Initialize Socket.IO connection
+            socket = io();
+
+            // Socket event listeners
+            socket.on('connect', () => {
+                socket.emit('join-room', {
+                    roomId: currentRoom,
+                    username: currentUsername
+                });
+            });
+
+            socket.on('room-state', handleRoomState);
+            socket.on('video-event', handleVideoEvent);
+            socket.on('chat-message', handleChatMessage);
+            socket.on('user-joined', handleUserJoined);
+            socket.on('user-left', handleUserLeft);
+            socket.on('youtube-video-changed', handleYouTubeVideoChanged);
+            socket.on('uploaded-video-changed', handleUploadedVideoChanged);
+            socket.on('webrtc-offer', handleWebRTCOffer);
+            socket.on('webrtc-answer', handleWebRTCAnswer);
+            socket.on('webrtc-ice-candidate', handleWebRTCIceCandidate);
+
+            // Hide modal and show main content
+            joinModal.classList.add('hidden');
+            mainContent.classList.remove('hidden');
+        }
+
+        // Handle room state when joining
+        function handleRoomState(data) {
+            updateOnlineUsers(data.users);
+            
+            if (data.video && data.videoType) {
+                if (data.videoType === 'youtube') {
+                    loadYouTubeVideoById(data.video);
+                } else if (data.videoType === 'upload') {
+                    loadUploadedVideo(data.video, data.fileName);
+                }
+                
+                // Sync playback state
+                if (data.playbackState) {
+                    syncPlaybackState(data.playbackState);
+                }
+            }
+        }
+
+        // Handle video events from other users
+        function handleVideoEvent(data) {
+            if (youtubePlayer && data.type) {
+                switch (data.type) {
+                    case 'play':
+                        youtubePlayer.playVideo();
+                        break;
+                    case 'pause':
+                        youtubePlayer.pauseVideo();
+                        break;
+                    case 'seek':
+                        youtubePlayer.seekTo(data.currentTime, true);
+                        break;
+                }
+            } else if (uploadedVideoEl && data.type) {
+                switch (data.type) {
+                    case 'play':
+                        uploadedVideoEl.play();
+                        break;
+                    case 'pause':
+                        uploadedVideoEl.pause();
+                        break;
+                    case 'seek':
+                        uploadedVideoEl.currentTime = data.currentTime;
+                        break;
+                }
+            }
+        }
+
+        // Handle chat messages
+        function handleChatMessage(data) {
+            addChatMessage(data.username, data.message, data.timestamp, data.userId === socket.id);
+        }
+
+        // Handle user joined
+        function handleUserJoined(data) {
+            addSystemMessage(`${data.username} joined the room`);
+            updateOnlineUsers();
+            setupWebRTCConnection(data.userId);
+        }
+
+        // Handle user left
+        function handleUserLeft(data) {
+            addSystemMessage(`${data.username} left the room`);
+            updateOnlineUsers();
+            
+            // Clean up WebRTC connection
+            if (peerConnections.has(data.userId)) {
+                peerConnections.get(data.userId).close();
+                peerConnections.delete(data.userId);
+            }
+            
+            // Remove video element
+            const videoElement = document.getElementById(`video-${data.userId}`);
+            if (videoElement) {
+                videoElement.remove();
+            }
+        }
+
+        // Handle YouTube video changed
+        function handleYouTubeVideoChanged(data) {
+            loadYouTubeVideoById(data.videoId);
+            addSystemMessage(`YouTube video changed: ${data.title}`);
+        }
+
+        // Handle uploaded video changed
+        function handleUploadedVideoChanged(data) {
+            loadUploadedVideo(data.fileUrl, data.fileName);
+            addSystemMessage(`Video changed: ${data.fileName}`);
+        }
+
+        // Send chat message
+        function sendMessage() {
+            const message = chatInput.value.trim();
+            if (!message || !socket) return;
+
+            socket.emit('chat-message', { message });
+            chatInput.value = '';
+        }
+
+        // Add chat message to UI
+        function addChatMessage(username, message, timestamp, isOwn = false) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `chat-message p-3 rounded-lg ${isOwn ? 'bg-white bg-opacity-5' : ''}`;
+            
+            const time = new Date(timestamp).toLocaleTimeString();
+            messageDiv.innerHTML = `
+                <div class="flex items-start space-x-3">
+                    <div class="user-avatar w-8 h-8 text-xs">${username.charAt(0).toUpperCase()}</div>
+                    <div>
+                        <div class="font-semibold">${username}</div>
+                        <p class="text-sm">${message}</p>
+                        <div class="text-xs text-gray-400">${time}</div>
+                    </div>
+                </div>
+            `;
+            
+            chatMessages.appendChild(messageDiv);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+
+        // Add system message
+        function addSystemMessage(message) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'text-center text-gray-400 text-sm py-2';
+            messageDiv.textContent = message;
+            chatMessages.appendChild(messageDiv);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+
+        // Update online users list
+        function updateOnlineUsers(usersList = null) {
+            if (!socket) return;
+
+            if (usersList) {
+                onlineUsers.innerHTML = '';
+                usersList.forEach(user => {
+                    const userDiv = document.createElement('div');
+                    userDiv.className = 'flex items-center space-x-3 py-2';
+                    userDiv.innerHTML = `
+                        <div class="user-avatar w-6 h-6 text-xs">${user.username.charAt(0).toUpperCase()}</div>
+                        <span class="text-sm">${user.username}</span>
+                    `;
+                    onlineUsers.appendChild(userDiv);
+                });
+                onlineCount.textContent = `${usersList.length} Online`;
+            }
+        }
+
+        // Handle file upload
+        function handleFileUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const formData = new FormData();
+            formData.append('video', file);
+
+            uploadProgress.classList.remove('hidden');
+            uploadStatus.textContent = 'Uploading...';
+
+            fetch('/api/upload', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    uploadStatus.textContent = 'Upload complete!';
+                    progressBarUpload.style.width = '100%';
+                    
+                    // Change the video in the room
+                    socket.emit('change-uploaded-video', {
+                        fileUrl: data.fileUrl,
+                        fileName: data.fileName
+                    });
+                    
+                    setTimeout(() => {
+                        uploadProgress.classList.add('hidden');
+                        progressBarUpload.style.width = '0%';
+                    }, 2000);
+                }
+            })
+            .catch(error => {
+                uploadStatus.textContent = 'Upload failed: ' + error.message;
+                progressBarUpload.style.width = '0%';
+            });
+
+            // Simulate progress for demo
+            let progress = 0;
+            const interval = setInterval(() => {
+                progress += 5;
+                progressBarUpload.style.width = `${progress}%`;
+                if (progress >= 100) {
+                    clearInterval(interval);
+                }
+            }, 100);
+        }
+
+        // Load YouTube video
+        function loadYouTubeVideo() {
+            const youtubeUrl = youtubeInput.value.trim();
+            if (!youtubeUrl) return;
+
+            let videoId = youtubeUrl;
+            
+            // Extract video ID from URL
+            if (youtubeUrl.includes('youtube.com') || youtubeUrl.includes('youtu.be')) {
+                const match = youtubeUrl.match(/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/);
+                if (match && match[1]) {
+                    videoId = match[1];
+                }
+            }
+
+            socket.emit('change-youtube-video', {
+                videoId: videoId,
+                title: 'YouTube Video'
+            });
+        }
+
+        // Load YouTube video by ID
+        function loadYouTubeVideoById(videoId) {
+            youtubeInput.value = videoId;
+            
+            // Hide other video containers
+            uploadedVideoContainer.classList.add('hidden');
+            noVideo.classList.add('hidden');
+            
+            // Show YouTube container
+            youtubeContainer.classList.remove('hidden');
+            videoControls.classList.remove('hidden');
+            videoTitle.textContent = 'YouTube Video';
+
+            // Initialize YouTube player if not already done
+            if (!window.YT) {
+                window.onYouTubeIframeAPIReady = () => {
+                    createYouTubePlayer(videoId);
+                };
+            } else {
+                createYouTubePlayer(videoId);
+            }
+        }
+
+        // Create YouTube player
+        function createYouTubePlayer(videoId) {
+            if (youtubePlayer) {
+                youtubePlayer.loadVideoById(videoId);
+                return;
+            }
+
+            youtubePlayer = new YT.Player('youtube-player', {
+                height: '100%',
+                width: '100%',
+                videoId: videoId,
+                playerVars: {
+                    'playsinline': 1,
+                    'controls': 0,
+                    'modestbranding': 1,
+                    'rel': 0
+                },
+                events: {
+                    'onReady': onYouTubePlayerReady,
+                    'onStateChange': onYouTubePlayerStateChange
+                }
+            });
+        }
+
+        // YouTube player ready
+        function onYouTubePlayerReady(event) {
+            // Player is ready
+        }
+
+        // YouTube player state change
+        function onYouTubePlayerStateChange(event) {
+            if (event.data == YT.PlayerState.PLAYING) {
+                socket.emit('video-event', {
+                    type: 'play',
+                    currentTime: youtubePlayer.getCurrentTime()
+                });
+            } else if (event.data == YT.PlayerState.PAUSED) {
+                socket.emit('video-event', {
+                    type: 'pause',
+                    currentTime: youtubePlayer.getCurrentTime()
+                });
+            }
+        }
+
+        // Load uploaded video
+        function loadUploadedVideo(fileUrl, fileName) {
+            // Hide other video containers
+            youtubeContainer.classList.add('hidden');
+            noVideo.classList.add('hidden');
+            
+            // Show uploaded video container
+            uploadedVideoContainer.classList.remove('hidden');
+            videoControls.classList.remove('hidden');
+            videoTitle.textContent = fileName;
+
+            uploadedVideoEl.src = fileUrl;
+            uploadedVideoEl.load();
+        }
+
+        // Handle video play
+        function handleVideoPlay() {
+            if (socket) {
+                socket.emit('video-event', {
+                    type: 'play',
+                    currentTime: uploadedVideoEl.currentTime
+                });
+            }
+        }
+
+        // Handle video pause
+        function handleVideoPause() {
+            if (socket) {
+                socket.emit('video-event', {
+                    type: 'pause',
+                    currentTime: uploadedVideoEl.currentTime
+                });
+            }
+        }
+
+        // Handle video seek
+        function handleVideoSeek() {
+            if (socket) {
+                socket.emit('video-event', {
+                    type: 'seek',
+                    currentTime: uploadedVideoEl.currentTime
+                });
+            }
+        }
+
+        // Handle video time update
+        function handleVideoTimeUpdate() {
+            const currentTime = formatTime(uploadedVideoEl.currentTime);
+            const duration = formatTime(uploadedVideoEl.duration);
+            const progress = (uploadedVideoEl.currentTime / uploadedVideoEl.duration) * 100;
+
+            currentTimeEl.textContent = currentTime;
+            totalTimeEl.textContent = duration;
+            progressBar.style.width = `${progress}%`;
+        }
+
+        // Handle video loaded
+        function handleVideoLoaded() {
+            const duration = formatTime(uploadedVideoEl.duration);
+            totalTimeEl.textContent = duration;
+        }
+
+        // Toggle play/pause
+        function togglePlayPause() {
+            if (youtubePlayer) {
+                if (youtubePlayer.getPlayerState() === YT.PlayerState.PLAYING) {
+                    youtubePlayer.pauseVideo();
+                } else {
+                    youtubePlayer.playVideo();
+                }
+            } else if (uploadedVideoEl) {
+                if (uploadedVideoEl.paused) {
+                    uploadedVideoEl.play();
+                } else {
+                    uploadedVideoEl.pause();
+                }
+            }
+        }
+
+        // Sync playback state
+        function syncPlaybackState(state) {
+            if (youtubePlayer) {
+                youtubePlayer.seekTo(state.currentTime, true);
+                if (state.isPlaying) {
+                    youtubePlayer.playVideo();
+                } else {
+                    youtubePlayer.pauseVideo();
+                }
+            } else if (uploadedVideoEl) {
+                uploadedVideoEl.currentTime = state.currentTime;
+                if (state.isPlaying) {
+                    uploadedVideoEl.play();
+                } else {
+                    uploadedVideoEl.pause();
+                }
+            }
+        }
+
+        // Format time (seconds to mm:ss)
+        function formatTime(seconds) {
+            const mins = Math.floor(seconds / 60);
+            const secs = Math.floor(seconds % 60);
+            return `${mins}:${secs.toString().padStart(2, '0')}`;
+        }
+
+        // WebRTC Functions
+        async function setupWebRTCConnection(targetUserId) {
+            try {
+                // Get user media
+                if (!localStream) {
+                    localStream = await navigator.mediaDevices.getUserMedia({
+                        video: true,
+                        audio: true
+                    });
+                    
+                    // Add local video
+                    addVideoElement(socket.id, localStream, true);
+                }
+
+                // Create peer connection
+                const peerConnection = new RTCPeerConnection({
+                    iceServers: [
+                        { urls: 'stun:stun.l.google.com:19302' },
+                        { urls: 'stun:stun1.l.google.com:19302' }
+                    ]
+                });
+
+                // Add local stream to connection
+                localStream.getTracks().forEach(track => {
+                    peerConnection.addTrack(track, localStream);
+                });
+
+                // Handle incoming stream
+                peerConnection.ontrack = (event) => {
+                    const remoteStream = event.streams[0];
+                    addVideoElement(targetUserId, remoteStream, false);
+                };
+
+                // Handle ICE candidates
+                peerConnection.onicecandidate = (event) => {
+                    if (event.candidate) {
+                        socket.emit('webrtc-ice-candidate', {
+                            target: targetUserId,
+                            candidate: event.candidate
+                        });
+                    }
+                };
+
+                // Store peer connection
+                peerConnections.set(targetUserId, peerConnection);
+
+                // Create offer
+                const offer = await peerConnection.createOffer();
+                await peerConnection.setLocalDescription(offer);
+                
+                socket.emit('webrtc-offer', {
+                    target: targetUserId,
+                    offer: offer
+                });
+
+            } catch (error) {
+                console.error('WebRTC setup error:', error);
+            }
+        }
+
+        // Handle WebRTC offer
+        async function handleWebRTCOffer(data) {
+            try {
+                if (!localStream) {
+                    localStream = await navigator.mediaDevices.getUserMedia({
+                        video: true,
+                        audio: true
+                    });
+                    
+                    // Add local video
+                    addVideoElement(socket.id, localStream, true);
+                }
+
+                const peerConnection = new RTCPeerConnection({
+                    iceServers: [
+                        { urls: 'stun:stun.l.google.com:19302' },
+                        { urls: 'stun:stun1.l.google.com:19302' }
+                    ]
+                });
+
+                // Add local stream to connection
+                localStream.getTracks().forEach(track => {
+                    peerConnection.addTrack(track, localStream);
+                });
+
+                // Handle incoming stream
+                peerConnection.ontrack = (event) => {
+                    const remoteStream = event.streams[0];
+                    addVideoElement(data.from, remoteStream, false);
+                };
+
+                // Handle ICE candidates
+                peerConnection.onicecandidate = (event) => {
+                    if (event.candidate) {
+                        socket.emit('webrtc-ice-candidate', {
+                            target: data.from,
+                            candidate: event.candidate
+                        });
+                    }
+                };
+
+                // Store peer connection
+                peerConnections.set(data.from, peerConnection);
+
+                // Set remote description and create answer
+                await peerConnection.setRemoteDescription(data.offer);
+                const answer = await peerConnection.createAnswer();
+                await peerConnection.setLocalDescription(answer);
+
+                socket.emit('webrtc-answer', {
+                    target: data.from,
+                    answer: answer
+                });
+
+            } catch (error) {
+                console.error('WebRTC offer handling error:', error);
+            }
+        }
+
+        // Handle WebRTC answer
+        async function handleWebRTCAnswer(data) {
+            const peerConnection = peerConnections.get(data.from);
+            if (peerConnection) {
+                await peerConnection.setRemoteDescription(data.answer);
+            }
+        }
+
+        // Handle WebRTC ICE candidate
+        async function handleWebRTCIceCandidate(data) {
+            const peerConnection = peerConnections.get(data.from);
+            if (peerConnection) {
+                await peerConnection.addIceCandidate(data.candidate);
+            }
+        }
+
+        // Add video element to UI
+        function addVideoElement(userId, stream, isLocal) {
+            // Remove existing video element if it exists
+            const existingVideo = document.getElementById(`video-${userId}`);
+            if (existingVideo) {
+                existingVideo.remove();
+            }
+
+            const videoElement = document.createElement('video');
+            videoElement.id = `video-${userId}`;
+            videoElement.autoplay = true;
+            videoElement.muted = isLocal;
+            videoElement.playsInline = true;
+            videoElement.srcObject = stream;
+            videoElement.className = 'w-full h-full object-cover rounded-lg';
+
+            const participantDiv = document.createElement('div');
+            participantDiv.className = `video-call-participant ${isLocal ? 'participant-active' : ''}`;
+            participantDiv.innerHTML = `
+                <div class="user-avatar mx-auto mb-2">${isLocal ? 'You' : getUserInitial(userId)}</div>
+                <div class="text-sm font-medium">${isLocal ? 'You' : getUsername(userId)}</div>
+                <div class="text-xs ${isLocal ? 'text-green-400' : 'text-gray-400'}">${isLocal ? 'Speaking' : 'Connected'}</div>
+            `;
+            participantDiv.appendChild(videoElement);
+
+            videoCallContainer.appendChild(participantDiv);
+        }
+
+        // Get user initial
+        function getUserInitial(userId) {
+            // This would ideally come from your user data store
+            return userId === socket.id ? 'Y' : 'U';
+        }
+
+        // Get username
+        function getUsername(userId) {
+            // This would ideally come from your user data store
+            return userId === socket.id ? 'You' : 'User';
+        }
+
+        // End call
+        function endCall() {
+            // Close all peer connections
+            peerConnections.forEach((connection, userId) => {
+                connection.close();
+            });
+            peerConnections.clear();
+
+            // Stop local stream
+            if (localStream) {
+                localStream.getTracks().forEach(track => track.stop());
+                localStream = null;
+            }
+
+            // Clear video call container
+            videoCallContainer.innerHTML = '';
+
+            // Reset buttons
+            isMuted = false;
+            isVideoOff = false;
+            updateCallButtons();
+        }
+
+        // Toggle mute
+        function toggleMute() {
+            if (localStream) {
+                const audioTracks = localStream.getAudioTracks();
+                audioTracks.forEach(track => {
+                    track.enabled = !track.enabled;
+                });
+                isMuted = !track.enabled;
+                updateCallButtons();
+            }
+        }
+
+        // Toggle video
+        function toggleVideo() {
+            if (localStream) {
+                const videoTracks = localStream.getVideoTracks();
+                videoTracks.forEach(track => {
+                    track.enabled = !track.enabled;
+                });
+                isVideoOff = !track.enabled;
+                updateCallButtons();
+            }
+        }
+
+        // Update call buttons
+        function updateCallButtons() {
+            muteBtn.innerHTML = isMuted ? '<i class="fas fa-microphone-slash"></i>' : '<i class="fas fa-microphone"></i>';
+            videoBtn.innerHTML = isVideoOff ? '<i class="fas fa-video-slash"></i>' : '<i class="fas fa-video"></i>';
+            muteBtn.className = isMuted ? 
+                'bg-red-500 p-3 rounded-full hover:bg-red-600 transition' : 
+                'bg-gray-600 p-3 rounded-full hover:bg-gray-700 transition';
+            videoBtn.className = isVideoOff ? 
+                'bg-red-500 p-3 rounded-full hover:bg-red-600 transition' : 
+                'bg-gray-600 p-3 rounded-full hover:bg-gray-700 transition';
+        }
+
+        // Initialize the application
+        document.addEventListener('DOMContentLoaded', init);
+    </script>
+</body>
+</html>
