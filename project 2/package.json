@@ -21,4 +21,9 @@
   "author": "StreamTogether",
   "license": "MIT"
 }
+"scripts": {
+  "start": "node index.js"
+}
+
+
 
